@@ -140,6 +140,9 @@ begin
   exact h₂ ff,
 end
 
+theorem top_in_flag : is_flag f → ⊤ ∈ f :=
+sorry,
+
 -- The set of grades of a flag.
 def flag_grades : set ℕ := {n | ∃ a ∈ f, grade a = n}
 
@@ -163,47 +166,76 @@ begin
 
   -- Every number between 0 and N is a flag grade.
   have I_in_G : I ⊆ G := begin
+    -- We suppose, by contradiction, that we're missing a number `n`.
     intros n n_mem_I,
     by_contra n_nmem_G,
 
-    have hm : ∃ m : ℕ, m ∈ G ∧ m < n ∧ ∀ k : ℕ, k ∈ set.Ioo m n → k ∉ G := begin
-      let S := set.Iic n ∩ G,
-      let Sf := set.finite.to_finset (set.finite.inf_of_left (set.finite_le_nat n) G),
-      have Sn : Sf.nonempty := begin
-        have h : 0 ∈ Sf := begin
-          rw set.finite.mem_to_finset,
-          split, {
-            exact zero_le n,
-          },
-          exact ⟨⊥, bot_in_flag f ff, graded.grade_bot_eq_zero⟩,
-        end,
-        exact ⟨0, h⟩,
+    -- We build the intersection `[0, n] ∩ G` and prove that it's finite and non-empty.
+    let Sm := (set.Iic n) ∩ G,
+    let Sm_finite : Sm.finite := set.finite.inf_of_left (set.finite_le_nat n) G,
+    let Sm_finset := set.finite.to_finset Sm_finite,
+    have Sm_finset_non : Sm_finset.nonempty := begin
+      use 0,
+      rw set.finite.mem_to_finset,
+      exact ⟨zero_le n, ⟨⊥, bot_in_flag f ff, graded.grade_bot_eq_zero⟩⟩,
+    end,
+
+    -- We build the largest grade in `G` that's lesser than `n`.
+    let m := Sm_finset.max' Sm_finset_non,
+    have m_mem_Sm := (set.finite.mem_to_finset Sm_finite).mp (Sm_finset.max'_mem Sm_finset_non),
+    cases m_mem_Sm with m_le_n m_mem_G,
+    have m_lt_n : m < n := begin
+      apply lt_of_le_of_ne,
+      apply m_le_n,
+      by_contra m_eq_n,
+      have h : m = n ↔ ¬ m ≠ n := not_not.symm,
+      rw ←h at m_eq_n,
+      rw ←m_eq_n at n_nmem_G,
+      exact n_nmem_G m_mem_G,
+    end,
+
+    -- We prove that no grades in (m, n) may appear in G.
+    have hm : ∀ k : ℕ, k ∈ set.Ioo m n → k ∉ G := begin
+      intros k k_mem_i,
+      by_contra,
+      have k_le_m : k ≤ m := begin
+        apply finset.le_max',
+        apply set.mem_to_finset.mpr,
+        exact set.mem_sep (set.mem_Iic.mpr (le_of_lt k_mem_i.right)) h,
       end,
-      let m := finset.max' Sf Sn,
-      use m,
-      sorry,
+      exact false.elim (not_lt.mpr k_le_m k_mem_i.left),
     end,
-    cases hm with m hm,
-    cases hm with m_in_G hm,
-    cases hm with m_le_n hm,
-    cases m_in_G with a ha,
-    cases ha with a_mem_f ga_eq_m,
 
-    have hM : ∃ M : ℕ, M ∈ G ∧ n < M ∧ ∀ k : ℕ, k ∈ set.Ioo n M → k ∉ G := sorry,
-    cases hM with M hM,
-    cases hM with M_in_G hM,
-    cases hM with n_le_M hM,
-    cases M_in_G with b hb,
-    cases hb with b_mem_f gb_eq_M,
+    -- We build the intersection `[n, ∞] ∩ G`.
+    let SM := (set.Ici n) ∩ G,
+    have SM_non : SM.nonempty := ⟨N, set.mem_inter n_mem_I ⟨⊤, top_in_flag f ff, rfl⟩⟩,
 
-    have c : covers a b := begin
-      split, {
-
-      }
+    -- We build the smallest grade in `G` that's greater than `N`.
+    let M : ℕ := well_founded.min nat.lt_wf SM SM_non,
+    have M_mem_SM := nat.lt_wf.min_mem SM SM_non,
+    cases M_mem_SM with n_le_M M_mem_G,
+    have n_lt_M : n < M := begin
+      apply lt_of_le_of_ne,
+      apply n_le_M,
+      by_contra n_eq_M,
+      have h : n = M ↔ ¬ n ≠ M := not_not.symm,
+      rw ←h at n_eq_M,
+      rw n_eq_M at n_nmem_G,
+      exact n_nmem_G M_mem_G,
     end,
-    have h₁ : m.succ = N := sorry,
-    have h₂ : m.succ < N := sorry,
-    finish,
+
+    -- We prove that no grades in (n, M) may appear in G.
+    have hm : ∀ k : ℕ, k ∈ set.Ioo n M → k ∉ G := begin
+      intros k k_mem_i,
+      by_contra,
+      simp at k_mem_i,
+      have k_ge_m : k ≥ M := begin
+        sorry,
+      end,
+      exact false.elim (not_lt.mpr k_ge_m k_mem_i.right),
+    end,
+    
+    sorry,
   end,
 
   exact set.subset.antisymm G_in_I I_in_G,
