@@ -237,4 +237,75 @@ begin
   sorry,
 end
 
+-- Any nontrivial section contains a vertex.
+theorem section_vertex (a b : α) : b < a → ∃ c ∈ set.Icc b a, covers b c :=
+begin
+  -- Set up an induction on (grade a), which can almost certainly be done more elegantly
+  let m := nat.succ (grade a),
+  have grade_a_m_succ : grade a < m,
+  {
+    apply lt_add_one,
+  },
+  revert grade_a_m_succ,
+  generalize : m = n,
+  clear m,
+  revert a b,
+  induction n with n ih,
+  {
+    intros a b grade_a_lt_zero,
+    cases nat.not_lt_zero _ grade_a_lt_zero,
+  },
+  intros a b grade_a_n_succ b_lt_a,
+  -- Is there something between a and b?
+  by_cases ∃ c : α, b < c ∧ c < a,
+  {
+    -- Yes, try to find a cover between that and b.
+    cases h with c h,
+    cases h with b_lt_c c_lt_a,
+    have h : ∃ (d ∈ set.Icc b c), covers b d,
+    {
+      apply ih,
+      {
+        let grade_c_lt_grade_a := graded.lt_grade_of_lt c_lt_a,
+        have grade_a_le_n : grade a ≤ n,
+        {
+          exact nat.le_of_lt_succ grade_a_n_succ,
+        },
+        exact nat.lt_of_lt_of_le grade_c_lt_grade_a grade_a_le_n,
+      },
+      exact b_lt_c,
+    },
+    cases h with d h,
+    use d,
+    cases h with d_between_b_a covers_b_d,
+    split,
+    {
+      rewrite set.mem_Icc,
+      rewrite set.mem_Icc at d_between_b_a,
+      cases d_between_b_a with b_le_d d_le_c,
+      split,
+      {
+        exact b_le_d,
+      },
+      exact le_trans d_le_c (le_of_lt c_lt_a),
+    },
+    exact covers_b_d,
+  },
+  -- No, so a is covering.
+  use a,
+  split,
+  {
+    rewrite set.mem_Icc,
+    split,
+    {
+      exact le_of_lt b_lt_a,
+    },
+    apply le_refl,
+  },
+  split,
+  {
+    exact b_lt_a,
+  },
+  exact h,
+end
 end abstract_polytope
