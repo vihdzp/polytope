@@ -1,29 +1,30 @@
-import tactic set_theory.ordinal order.bounded_lattice order.zorn data.set.intervals.ord_connected order.rel_iso
+import tactic set_theory.ordinal order.bounded_lattice order.zorn data.set.intervals.ord_connected order.rel_iso data.finset.preimage
 
 open_locale cardinal
 
 set_option old_structure_cmd true
 
--- A partial order with a least and greatest element.
+/-- A partial order with a least and greatest element. -/
 class bounded_partial_order (α : Type*) extends order_top α, order_bot α
 
 namespace bounded_partial_order
 section
 
-  parameters (α : Type*) [bl : bounded_lattice α]
+  parameters {α : Type*} [bl : bounded_lattice α]
 
+  -- A bounded lattice is a bounded partial order.
   instance of_top_bot : bounded_partial_order α :=
   { ..bl }
 
 end
 end bounded_partial_order
 
--- A face `c` covers `a` whenever `a < c` and no face `b` exists such that `a < b < c`.
+/-- A face `c` covers `a` whenever `a < c` and no face `b` exists such that `a < b < c`. -/
 def covers {α : Type*} [preorder α] (a c : α) : Prop :=
 a < c ∧ ¬ ∃ b, a < b ∧ b < c
 
--- A graded poset has a function from elements to naturals that's compatible 
--- with the ordering, and consistent with the covering relation. 
+/-- A graded poset has a function from elements to naturals that's compatible
+    with the ordering, and consistent with the covering relation. -/
 class graded (α : Type*) extends order_bot α :=
 (grade : α → ℕ)
 (grade_bot_eq_zero : grade ⊥ = 0)
@@ -31,9 +32,12 @@ class graded (α : Type*) extends order_bot α :=
 (eq_p1_of_cover : ∀ {a b : α}, covers a b → grade a + 1 = grade b)
 
 namespace graded
+section
 
-  -- If `a ≤ b`, then `grade a ≤ grade b`.
-  theorem le_grade_of_le {α : Type*} [graded α] : ∀ {a b : α}, a ≤ b → graded.grade a ≤ graded.grade b :=
+  parameters {α : Type*} [graded α]
+
+  /-- If `a ≤ b`, then `grade a ≤ grade b`. -/
+  theorem le_grade_of_le : ∀ {a b : α}, a ≤ b → graded.grade a ≤ graded.grade b :=
   begin
     intros a b a_le_b,
     cases lt_or_eq_of_le a_le_b with a_lt_b a_eq_b, {
@@ -42,26 +46,57 @@ namespace graded
     exact (congr_arg grade (eq.symm a_eq_b)).ge,
   end
 
+  /-- If `grade a = 0`, then `a = ⊥`. -/
+  theorem eq_bot_of_grade_eq_zero {a : α} : grade a = 0 → a = ⊥ :=
+  begin
+    contrapose,
+    intro a_ne_bot,
+    have h : grade a > grade (⊥ : α) :=  lt_grade_of_lt (lt_of_le_of_ne (bot_le a) (ne.symm a_ne_bot)),
+    rw grade_bot_eq_zero at h,
+    exact ne_of_gt h,
+  end
+
+end
 end graded
 
--- A graded, bounded partial order.
+/-- A graded, bounded partial order. -/
 class graded_bounded_partial_order (α : Type*) extends bounded_partial_order α, graded α
+
+namespace graded_bounded_partial_order
+section
+
+  parameters {α : Type*} [graded_bounded_partial_order α] (a : α)
+
+  /-- If `grade a = grade ⊤`, then `a = ⊤`. -/
+  theorem eq_top_of_grade_eq_grade_top : graded.grade a = graded.grade (⊤ : α) → a = ⊤ :=
+  begin
+    contrapose,
+    intro a_ne_bot,
+    exact ne_of_lt ( lt_grade_of_lt (lt_of_le_of_ne (le_top a) a_ne_bot)),
+  end
+
+  /-- The grade of any element is in the interval `[0, grade ⊤]`. -/
+  theorem grade_mem_Iic : graded.grade a ∈ set.Iic (graded.grade (⊤ : α)) :=
+  graded.le_grade_of_le (le_top a)
+
+end
+end graded_bounded_partial_order
 
 namespace flag
 section
 
   variables {α : Type*} [graded_bounded_partial_order α] {f f' : set α}
 
-  -- A flag is a maximal chain.
+  /-- A flag is a maximal chain. -/
   def is_flag (c : set α) : Prop :=
-  @zorn.is_max_chain _ (<) c  
+  @zorn.is_max_chain _ (<) c
 
-   -- Two flags are adjacent when they differ by exactly one element.
+  /-- Two flags are adjacent when they differ by exactly one element. -/
   def flag_adj (f f' : set α) : Prop :=
   is_flag f → is_flag f' → #(set.diff f f') = 1
 
-  -- If one attempts to extend a flag `f` by an element `e` which is comparable to
-  -- all other faces of the flag, we obtain a contradiction. 
+  /-- If one attempts to extend a flag `f` by an element `e` which is comparable to
+  --  all other faces of the flag, we obtain a contradiction. -/
   lemma flag_extend (e : α) : is_flag f → e ∉ f → ¬(∀ a ∈ f, a ≠ e → a < e ∨ e < a) :=
   begin
     -- We define `f' = f ∪ {e}`.
@@ -70,19 +105,19 @@ section
     have hf' : ∀ a ∈ f', a ∈ f ∨ a = e := by simp,
     apply ff.right,
     use f',
-      
+
     -- `f` is not equal to `f'`.
     have f_ne_f' : f ≠ f' := begin
       intro f_eq_f',
       rw f_eq_f' at e_nmem_f,
       exact e_nmem_f (set.mem_union_right f rfl),
     end,
-    
-    -- We prove that `f'` is a super chain of `f`, a contradiction!
+
+    -- We prove that `f'` is a superchain of `f`, a contradiction!
     split, {
       intros a a_mem_f' b b_mem_f' a_ne_b,
 
-      -- Cases depending on whether `a` or `b` equal `e`. 
+      -- Cases depending on whether `a` or `b` equal `e`.
       cases hf' a a_mem_f' with a_mem_f a_eq_t, {
         cases hf' b b_mem_f' with b_mem_f b_eq_t, {
           exact ff.left a a_mem_f b b_mem_f a_ne_b,
@@ -92,7 +127,7 @@ section
       },
       cases hf' b b_mem_f' with b_mem_f b_eq_t, {
         rw a_eq_t at *,
-        exact or.swap (h b b_mem_f (ne.symm a_ne_b)),   
+        exact or.swap (h b b_mem_f (ne.symm a_ne_b)),
       },
       rw b_eq_t at *,
       exact false.elim (a_ne_b a_eq_t),
@@ -144,17 +179,19 @@ section
   -- Subtyping preserves inequality and viceversa.
   lemma ne_iff_subtype : a ≠ b ↔ a.val ≠ b.val := by simp
 
+  -- Flag faces form a partial order.
   instance of_partial_order : partial_order (flag_faces ff) :=
   {
     le := λ a b, a.val ≤ b.val,
     le_refl := λ a, le_refl a.val,
     le_trans := λ _ _ _ a_le_b b_le_c, le_trans a_le_b b_le_c,
     le_antisymm := λ _ _ a_le_b b_le_a, subtype.eq (le_antisymm a_le_b b_le_a),
-  }  
+  }
 
   -- Subtyping preserves order and viceversa.
   @[simp] lemma lt_iff_subtype : a < b ↔ a.val < b.val := iff.symm lt_iff_le_not_le
 
+  -- Flag faces form a linear order.
   noncomputable instance of_linear_order : linear_order (flag_faces ff) :=
   {
     le_total := begin
@@ -174,13 +211,12 @@ section
       exact or.inr (le_of_lt ((lt_iff_subtype b a).mpr bv_lt_av)),
     end,
 
-    decidable_le := begin
-      exact classical.dec_rel _,
-    end,
+    decidable_le := classical.dec_rel _,
 
     ..of_partial_order
   }
 
+  -- Flag faces form a graded bounded partial order.
   instance of_graded_bounded_partial_order : graded_bounded_partial_order (flag_faces ff) :=
   {
     bot := ⟨⊥, flag.bot_in_flag ff⟩,
@@ -196,13 +232,13 @@ section
       intros _ _ a_lt_b,
       exact graded.lt_grade_of_lt ((lt_iff_subtype _ _).mp a_lt_b),
     end,
-    
+
     eq_p1_of_cover := begin
       -- It suffices to prove that `a` covers `c`.
       rintros a c ⟨a_lt_c, hne⟩,
       apply graded.eq_p1_of_cover,
       use (lt_iff_subtype a c).mp a_lt_c,
-      
+
       -- To do this, we prove that any element between `a` and `c` must be in `f`.
       by_contra he,
       cases he with bv a_mem_ibc,
@@ -242,21 +278,65 @@ section
     ..of_partial_order,
   }
 
-  -- instance of_well_order : is_well_order (flag.flag_faces ff) := 
-
 end
 end flag_faces
 
 namespace flag
 section
 
-  variables {α : Type*} [graded_bounded_partial_order α] {f f' : set α} {ff : is_flag f} {a b : flag_faces ff}
+  variables {α : Type*} [graded_bounded_partial_order α] {f f' : set α}
 
-  -- The set of grades of a flag.
+  /-- Casts a flag into a set of its own faces. -/
+  def to_flag_faces (ff : is_flag f) : set (flag_faces ff) := subtype.val ⁻¹' f
+
+  /-- Every set of faces in a flag is a subset of the entire set. -/
+  lemma ssubset_flag_faces {ff : is_flag f} (s : set (flag_faces ff)) : s ⊆ to_flag_faces ff :=
+  λ s _, subtype.mem s
+
+  /-- If `s` contains all faces of a flag, it must be the set of all faces. -/
+  lemma eq_of_ssubset_flag_faces (ff : is_flag f) (s : set (flag_faces ff)) : to_flag_faces ff ⊆ s → s = to_flag_faces ff :=
+  begin
+    intro ff_subset_s,
+    refine set.eq_of_subset_of_subset _ ff_subset_s,
+    exact ssubset_flag_faces s,
+  end 
+
+  /-- Applying `to_flag_faces` to a flag does not change the fact that it is a flag. -/
+  theorem to_flag_faces_is_flag (ff : is_flag f) : is_flag (to_flag_faces ff) :=
+  begin
+    split, {
+      intros _ _ _ _ a_ne_b,
+      exact ne.lt_or_lt a_ne_b,
+    },
+    by_contra h,
+    cases h with ch hch,
+    cases hch with _ sch,
+    rw set.ssubset_def at sch,
+    exact sch.right (ssubset_flag_faces ch),
+  end
+
+  /-- The subtypes of all elements of a flag form the original set. -/
+  lemma subtype_of_flag_faces_eq_flag (ff : is_flag f) : subtype.val '' to_flag_faces ff = f :=
+  begin
+    apply set.ext,
+    intro x,
+    split, {
+      intro h,
+      cases h with a ha,
+      cases ha with a_mem_ff av_eq_x,
+      exact set.mem_of_eq_of_mem (eq.symm av_eq_x) a_mem_ff,
+    },
+    intro x_mem_f,
+    let x' : flag_faces ff := ⟨x, x_mem_f⟩, 
+    use x', 
+    use x_mem_f,
+  end
+
+  /-- The set of grades of a flag. -/
   def flag_grades (f : set α): set ℕ := {n | ∃ a ∈ f, graded.grade a = n}
-
-  -- In a flag, `grade a < grade b` implies `a < b`.
-  theorem grade_lt_of_lt : graded.grade a < graded.grade b → a < b := 
+  
+  /-- In a flag, `grade a < grade b` implies `a < b`. -/
+  theorem grade_lt_of_lt {ff : is_flag f} {a b : flag_faces ff} : graded.grade a < graded.grade b → a < b :=
   begin
     rintros ga_lt_gb,
     cases lt_trichotomy a b with a_lt_b a_nlt_b, {
@@ -269,9 +349,9 @@ section
     exact false.elim (nat.lt_asymm ga_lt_gb (graded.lt_grade_of_lt a_gt_b)),
   end
 
-  -- No two elements in a flag have the same grade.
-  theorem grade_eq_of_eq : graded.grade a = graded.grade b → a = b := 
-  begin    
+  /-- No two elements in a flag have the same grade. -/
+  theorem grade_eq_of_eq {ff : is_flag f} {a b : flag_faces ff} : graded.grade a = graded.grade b → a = b :=
+  begin
     rintros ga_eq_gb,
     cases lt_trichotomy a b with a_lt_b a_nlt_b, {
       exact false.elim (ne_of_lt (graded.lt_grade_of_lt a_lt_b) ga_eq_gb),
@@ -282,7 +362,61 @@ section
     exact false.elim (ne_of_gt (graded.lt_grade_of_lt a_gt_b) ga_eq_gb),
   end
 
-  -- A flag contains faces of each grade up to the grade of its topmost face.
+  /-- Flag grades on a flag are sent to the interval `[0, grade ⊤]`. -/
+  theorem flag_grades_maps_to (ff : is_flag f) : set.maps_to graded.grade f (set.Iic (graded.grade (⊤ : α))) :=
+  λ _ _,  graded.le_grade_of_le le_top
+
+  /-- Flag grades are injective on a flag. -/
+  theorem flag_grades_inj_on (ff : is_flag f) : set.inj_on graded.grade f :=
+  begin
+    intros a a_mem_f b b_mem_f ga_eq_gb,
+    apply (flag_faces.eq_iff_subtype ⟨a, a_mem_f⟩ ⟨b, b_mem_f⟩).mp,
+    apply grade_eq_of_eq,
+    exact ga_eq_gb,
+    exact ff,
+  end
+
+  /-- Flag grades are injective on a flag. -/
+  theorem flag_grades_inj_on' (ff : is_flag f) : set.inj_on graded.grade (to_flag_faces ff) :=
+  begin
+    apply flag_grades_inj_on,
+    exact to_flag_faces_is_flag ff,
+  end  
+
+  /-- The faces of a flag have a fintype, i.e. every flag is finite. -/
+  noncomputable theorem flag_fintype (ff : is_flag f) : fintype (flag_faces ff) := begin
+    -- We define the interval `[0, grade ⊤]` and its inverse image under `grade`, onto `f`.
+    let I := set.Iic (graded.grade (⊤ : α)),
+    let I_fin := set.finite_le_nat (graded.grade (⊤ : α)),
+    let f' : set (flag_faces ff) := graded.grade ⁻¹' I,
+    have f'_eq_to_flag_faces_ff : f' = to_flag_faces ff := begin
+      apply eq_of_ssubset_flag_faces,
+      intros a _,
+      exact graded_bounded_partial_order.grade_mem_Iic a,
+    end,
+
+    -- The `grade` function is injective on the flag.
+    have flag_grades_inj_on_ff : @set.inj_on (flag_faces ff) ℕ graded.grade f' := begin
+      rw f'_eq_to_flag_faces_ff,
+      apply flag_grades_inj_on',
+    end,
+
+    -- Since `I` is finite, so are `f'` and `f`.
+    have f'_fin : f'.finite := @set.finite.preimage (flag_faces ff) ℕ I graded.grade flag_grades_inj_on_ff I_fin,
+    rw f'_eq_to_flag_faces_ff at f'_fin,
+    have f_fin : f.finite := begin
+      have h := set.finite.image subtype.val f'_fin,
+      rw subtype_of_flag_faces_eq_flag at h,
+      exact h,
+    end,
+    exact set.finite.fintype f_fin,
+  end
+
+  /-- The assertion that a flag is finite. -/
+  def flag_finite (ff : is_flag f) : f.finite :=
+  ⟨flag_fintype ff⟩
+
+  /-- A flag contains faces of each grade up to the grade of its topmost face. -/
   theorem flag_grades_Iic (ff : is_flag f) : flag_grades f = set.Iic (graded.grade (⊤ : α)) :=
   begin
     let G := flag_grades f,
@@ -291,10 +425,9 @@ section
 
     -- Every flag grade is between `0` and `N`.
     have G_in_I : G ⊆ I := begin
-      rintros _ ⟨a, a_in_f, ga_eq_f⟩,
-      have ga_lt_N : graded.grade a ≤ N := graded.le_grade_of_le le_top,
-      rw ga_eq_f at ga_lt_N,
-      exact ga_lt_N,
+      rintros _ ⟨_, a_mem_f, ga_eq_f⟩,
+      rw ←ga_eq_f,
+      exact flag_grades_maps_to ff a_mem_f,
     end,
 
     -- Every number between `0` and `N` is a flag grade.
@@ -371,7 +504,7 @@ section
 
       -- `m < M`, obviously.
       have m_lt_M : m < M := lt_trans m_lt_n n_lt_M,
-      
+
       -- We build faces `a` and `c` in the flag with grades `m` and `M`.
       cases m_mem_G with a ea,
       cases M_mem_G with c ec,
@@ -426,8 +559,72 @@ section
     exact set.subset.antisymm G_in_I I_in_G,
   end
 
+  /-- Flag grades are surjective from a flag onto `[0, grade ⊤]`. -/
+  theorem flag_grades_surj_on (ff : is_flag f) : set.surj_on graded.grade f (set.Iic (graded.grade (⊤ : α))) :=
+  begin
+    intros n n_mem_Iic,
+    have h : graded.grade '' f = flag_grades f := set.image_eq graded.grade f,
+    rw h,
+    rw flag_grades_Iic ff,
+    exact n_mem_Iic,
+  end
+
+  /-- Flag grades are surjective from a flag onto `[0, grade ⊤]`. -/
+  theorem flag_grades_surj_on' (ff : is_flag f) : set.surj_on graded.grade (to_flag_faces ff) (set.Iic (graded.grade (⊤ : α))) :=
+  begin
+    apply flag_grades_surj_on,
+    exact to_flag_faces_is_flag ff,
+  end
+
+  /-- Flag grades are bijective from a flag onto `[0, grade ⊤]`. -/
+  theorem flag_grades_bij_on (ff : is_flag f) : set.bij_on graded.grade f (set.Iic (graded.grade (⊤ : α))) :=
+  ⟨flag_grades_maps_to ff, flag_grades_inj_on ff, flag_grades_surj_on ff⟩
+
+  /-- Flag grades are bijective from a flag onto `[0, grade ⊤]`. -/
+  theorem flag_grades_bij_on' (ff : is_flag f) : set.bij_on graded.grade (to_flag_faces ff) (set.Iic (graded.grade (⊤ : α))) :=
+  begin
+    apply flag_grades_bij_on,
+    exact to_flag_faces_is_flag ff,
+  end
+
+  -- Any flag's cardinality equals the rank of the top element, plus one.
+  theorem flag_card : #f = graded.grade (⊤ : α) + 1 :=
+  sorry
+
 end
 end flag
+
+namespace flag_faces
+section
+
+  parameters {α : Type*} [graded_bounded_partial_order α] {f : set α} {ff : flag.is_flag f}
+
+  instance of_well_order : @is_well_order (flag_faces ff) (<) :=
+  {
+    wf := begin
+      apply well_founded.intro,
+      have h : ∀ {n : ℕ} (a : flag_faces ff), graded.grade a ≤ n → acc (<) a := begin
+        intro n,
+        induction n with n hn, {
+          intros a ga_le_zero,
+          apply acc.intro,
+          intros y y_lt_a,
+          rw (graded.eq_bot_of_grade_eq_zero (nat.le_zero_iff.mp ga_le_zero)) at y_lt_a,
+          have bot_le_y : ⊥ ≤ y := bot_le,
+          exact false.elim ((not_lt.mpr bot_le_y) y_lt_a),
+        },
+        intros a ga_le_ns,
+        apply acc.intro,
+        intros y y_lt_a,
+        exact hn y (nat.lt_succ_iff.mp (lt_of_lt_of_le (graded.lt_grade_of_lt y_lt_a) ga_le_ns)),
+      end,
+      intro a,
+      exact h a rfl.ge,
+    end
+  }
+
+end
+end flag_faces
 
 set_option old_structure_cmd false
 
@@ -442,9 +639,11 @@ namespace abstract_polytope
 
   def grade : α → ℕ := graded.grade
 
-  theorem all_flags_same_card : ∀ {c c' : set α}, flag.is_flag c → flag.is_flag c' → #c = #c' :=
-  sorry
-  
+  theorem all_flags_same_card {f f' : set α} (ff : flag.is_flag f): #f = #f' :=
+  begin
+    sorry,
+  end
+
   -- Flag adjacency in an abstract polytope is commutative.
   theorem flag_adj_comm : flag.is_flag f → flag.is_flag f' → flag.flag_adj f f' → flag.flag_adj f' f :=
   begin
