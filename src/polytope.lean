@@ -75,9 +75,13 @@ section
     exact ne_of_lt ( lt_grade_of_lt (lt_of_le_of_ne (le_top a) a_ne_bot)),
   end
 
-  /-- The grade of any element is in the interval `[0, grade ⊤]`. -/
+  /-- The grade of any face is in the interval `[0, grade ⊤]`. -/
   theorem grade_mem_Iic : graded.grade a ∈ set.Iic (graded.grade (⊤ : α)) :=
   graded.le_grade_of_le (le_top a)
+
+  /-- The grade of a face as a member of a finite set. -/
+  def fin_grade : α → fin (grade (⊤ : α) + 1) := 
+  λ a, ⟨graded.grade a, nat.lt_succ_iff.mpr (graded.le_grade_of_le (le_top a))⟩
 
 end
 end graded_bounded_partial_order
@@ -88,8 +92,7 @@ section
   variables {α : Type*} [graded_bounded_partial_order α] {f f' : set α}
 
   /-- A flag is a maximal chain. -/
-  def is_flag (c : set α) : Prop :=
-  @zorn.is_max_chain _ (<) c
+  def is_flag (c : set α) : Prop := @zorn.is_max_chain _ (<) c
 
   /-- Two flags are adjacent when they differ by exactly one element. -/
   def flag_adj (f f' : set α) : Prop :=
@@ -241,8 +244,7 @@ section
 
       -- To do this, we prove that any element between `a` and `c` must be in `f`.
       by_contra he,
-      cases he with bv a_mem_ibc,
-      cases a_mem_ibc with av_lt_bv bv_lt_cv,
+      rcases he with ⟨bv, av_lt_bv, bv_lt_cv⟩,
       apply hne,
 
       -- To use the `flag_extend` lemma, we must prove that any `x ∈ f` is comparable to `b`.
@@ -299,7 +301,7 @@ section
     intro ff_subset_s,
     refine set.eq_of_subset_of_subset _ ff_subset_s,
     exact ssubset_flag_faces s,
-  end 
+  end
 
   /-- Applying `to_flag_faces` to a flag does not change the fact that it is a flag. -/
   theorem to_flag_faces_is_flag (ff : is_flag f) : is_flag (to_flag_faces ff) :=
@@ -309,8 +311,7 @@ section
       exact ne.lt_or_lt a_ne_b,
     },
     by_contra h,
-    cases h with ch hch,
-    cases hch with _ sch,
+    rcases h with ⟨ch, _, sch⟩,
     rw set.ssubset_def at sch,
     exact sch.right (ssubset_flag_faces ch),
   end
@@ -322,19 +323,17 @@ section
     intro x,
     split, {
       intro h,
-      cases h with a ha,
-      cases ha with a_mem_ff av_eq_x,
+      rcases h with ⟨_, a_mem_ff, av_eq_x⟩,
       exact set.mem_of_eq_of_mem (eq.symm av_eq_x) a_mem_ff,
     },
     intro x_mem_f,
-    let x' : flag_faces ff := ⟨x, x_mem_f⟩, 
-    use x', 
+    use ⟨x, x_mem_f⟩,
     use x_mem_f,
   end
 
   /-- The set of grades of a flag. -/
   def flag_grades (f : set α): set ℕ := {n | ∃ a ∈ f, graded.grade a = n}
-  
+
   /-- In a flag, `grade a < grade b` implies `a < b`. -/
   theorem grade_lt_of_lt {ff : is_flag f} {a b : flag_faces ff} : graded.grade a < graded.grade b → a < b :=
   begin
@@ -374,6 +373,13 @@ section
     apply grade_eq_of_eq,
     exact ga_eq_gb,
     exact ff,
+  end  
+
+  /-- `fin_grade` is an embedding from `flag_faces ff` into `fin (grade ⊤ + 1)`. -/
+  def fin_grade_inj (ff : is_flag f) : flag_faces ff ↪ fin (graded.grade (⊤ : α) + 1) := begin
+    use graded_bounded_partial_order.fin_grade,
+    intros a b fga_eq_fgb,
+    exact grade_eq_of_eq (fin.mk.inj_iff.mp fga_eq_fgb),
   end
 
   /-- Flag grades are injective on a flag. -/
@@ -381,7 +387,7 @@ section
   begin
     apply flag_grades_inj_on,
     exact to_flag_faces_is_flag ff,
-  end  
+  end
 
   /-- The faces of a flag have a fintype, i.e. every flag is finite. -/
   noncomputable theorem flag_fintype (ff : is_flag f) : fintype (flag_faces ff) := begin
@@ -587,9 +593,54 @@ section
     exact to_flag_faces_is_flag ff,
   end
 
-  -- Any flag's cardinality equals the rank of the top element, plus one.
-  theorem flag_card : #f = graded.grade (⊤ : α) + 1 :=
-  sorry
+  def fin_grade_inv (ff : is_flag f) : fin (graded.grade (⊤ : α) + 1) → flag_faces ff :=
+  begin
+    --have h := function.embedding.inv_of_mem_range graded_bounded_partial_order.fin_grade,
+    sorry,
+  end
+
+  def faces_equiv_grades (ff : is_flag f) : flag_faces ff ≃ fin (graded.grade (⊤ : α) + 1) :=
+  begin
+    use graded_bounded_partial_order.fin_grade,
+    sorry,
+    sorry,
+    sorry,
+  end
+
+  /-- The cardinality of a flag. -/
+  def flag_card (ff : is_flag f) [fintype (flag_faces ff)] : ℕ := fintype.card (flag_faces ff)
+
+  /-- Any flag's cardinality equals the grade of the top face, plus one. -/
+  theorem flag_card_eq_grade_top_p1 (ff : is_flag f) [fintype (flag_faces ff)] : flag_card ff = graded.grade (⊤ : α) + 1 :=
+  begin
+    let N := graded.grade (⊤ : α),
+    rw ←fintype.card_fin (N + 1),
+    apply fintype.card_congr,
+    split, rotate, rotate, {      
+      intro a,
+      use graded.grade a,
+    }, {
+      sorry,
+    }, {
+      sorry,
+    },
+    sorry,
+  end
+
+  /-- All flags have the same cardinality. -/
+  theorem all_flags_same_card (ff : is_flag f) (ff' : is_flag f') [fintype (flag_faces ff)] [fintype (flag_faces ff')] : flag_card ff = flag_card ff' :=
+  begin
+    have h₁ := flag_card_eq_grade_top_p1 ff,
+    rw ←(flag_card_eq_grade_top_p1 ff') at h₁,
+    exact h₁,
+  end
+
+  /-- Flag adjacency in an abstract polytope is commutative. -/
+  theorem flag_adj_comm : flag.is_flag f → flag.is_flag f' → flag.flag_adj f f' → flag.flag_adj f' f :=
+  begin
+    intros ff ff',
+    sorry,
+  end
 
 end
 end flag
@@ -599,7 +650,7 @@ section
 
   parameters {α : Type*} [graded_bounded_partial_order α] {f : set α} {ff : flag.is_flag f}
 
-  instance of_well_order : @is_well_order (flag_faces ff) (<) :=
+  instance of_well_order : is_well_order (flag_faces ff) (<) :=
   {
     wf := begin
       apply well_founded.intro,
@@ -635,28 +686,16 @@ set_option old_structure_cmd true
 
 namespace abstract_polytope
 
-  variables {α : Type*} [abstract_polytope α] (f f' : set α)
+  variables {α : Type*} [abstract_polytope α] {f f' : set α}
 
-  def grade : α → ℕ := graded.grade
-
-  theorem all_flags_same_card {f f' : set α} (ff : flag.is_flag f): #f = #f' :=
-  begin
-    sorry,
-  end
-
-  -- Flag adjacency in an abstract polytope is commutative.
-  theorem flag_adj_comm : flag.is_flag f → flag.is_flag f' → flag.flag_adj f f' → flag.flag_adj f' f :=
-  begin
-    intros ff ff',
-    sorry,
-  end
+  def grade : ℕ := graded.grade (⊤ : α)
 
   -- Any nontrivial section contains a vertex.
   theorem section_vertex (a b : α) : b < a → ∃ c ∈ set.Icc b a, covers b c :=
   begin
     -- Set up an induction on (grade a), which can almost certainly be done more elegantly
-    let m := nat.succ (grade a),
-    have grade_a_m_succ : grade a < m,
+    let m := nat.succ (graded.grade a),
+    have grade_a_m_succ : graded.grade a < m,
     {
       apply lt_add_one,
     },
@@ -681,7 +720,7 @@ namespace abstract_polytope
         apply ih,
         {
           let grade_c_lt_grade_a := graded.lt_grade_of_lt c_lt_a,
-          have grade_a_le_n : grade a ≤ n,
+          have grade_a_le_n : graded.grade a ≤ n,
           {
             exact nat.le_of_lt_succ grade_a_n_succ,
           },
